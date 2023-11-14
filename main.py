@@ -20,7 +20,7 @@ class UpdateResult(object):
     def is_updated(self):
         return self.updated_file_path is not None
 
-
+ 
 def parse_arguments():
     parser = ArgumentParser(description="Code cleaner")
     parser.add_argument("-p", "--path", default=getcwd(), required=False, help="Path to root directory")
@@ -36,25 +36,27 @@ def make_path(path_arg):
     return Path(path_arg.replace("~", home_path))
 
 
-def list_file_for_paths(paths, extension=""):
-    paths = list(paths)
-
-    if len(paths) == 0:
-        return []
-
-    head = paths[0]
-    tail = paths[1:]
-
-    if head.is_dir():
-        return list_file_for_paths(head.iterdir(), extension) + list_file_for_paths(tail, extension)
-    elif extension in str(head):
-        return [head] + list_file_for_paths(tail, extension)
-    else:
-        return list_file_for_paths(tail, extension)
-
-
 def list_files_for_path(root_path, extension=""):
-    return list_file_for_paths([root_path], extension)
+    def list_file_for_paths(paths):
+        paths = list(paths)
+
+        if len(paths) == 0:
+            return []
+
+        head = paths[0]
+        tail = paths[1:]
+
+        if head.is_dir():
+            return list_file_for_paths(head.iterdir()) + list_file_for_paths(tail)
+        elif extension in str(head):
+            return [head] + list_file_for_paths(tail)
+        else:
+            return list_file_for_paths(tail)
+
+    if not extension.startswith("."):
+        extension = f".{extension}"
+
+    return list_file_for_paths([root_path])
 
 
 def remove_trailing_whitespaces(file_path):
