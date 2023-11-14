@@ -20,11 +20,11 @@ class UpdateResult(object):
     def is_updated(self):
         return self.updated_file_path is not None
 
- 
+
 def parse_arguments():
     parser = ArgumentParser(description="Code cleaner")
     parser.add_argument("-p", "--path", default=getcwd(), required=False, help="Path to root directory")
-    parser.add_argument("-f", "--file-type", default="swift", required=False, help="Type of file")
+    parser.add_argument("-f", "--file-type", default="", required=False, help="Type of file")
     return parser.parse_args()
 
 
@@ -37,23 +37,29 @@ def make_path(path_arg):
 
 
 def list_files_for_path(root_path, extension=""):
+    def is_on_blacklist(path):
+        blacklist = [".git", "venv"]
+        return any(map(lambda x: x in str(path), blacklist))
+
     def list_file_for_paths(paths):
         paths = list(paths)
 
         if len(paths) == 0:
             return []
 
-        head = paths[0]
+        head: Path = paths[0]
         tail = paths[1:]
 
-        if head.is_dir():
+        if is_on_blacklist(head):
+            return list_file_for_paths(tail)
+        elif head.is_dir():
             return list_file_for_paths(head.iterdir()) + list_file_for_paths(tail)
         elif extension in str(head):
             return [head] + list_file_for_paths(tail)
         else:
             return list_file_for_paths(tail)
 
-    if not extension.startswith("."):
+    if extension and not extension.startswith("."):
         extension = f".{extension}"
 
     return list_file_for_paths([root_path])
