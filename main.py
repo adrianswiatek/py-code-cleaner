@@ -24,7 +24,7 @@ class UpdateResult(object):
 def parse_arguments():
     parser = ArgumentParser(description="Code cleaner")
     parser.add_argument("-p", "--path", default=getcwd(), required=False, help="Path to root directory")
-    parser.add_argument("-f", "--file-type", default="", required=False, help="Type of file")
+    parser.add_argument("-f", "--file-type", default="*", required=False, help="Type of file")
     return parser.parse_args()
 
 
@@ -36,56 +36,32 @@ def make_path(path_arg):
     return Path(path_arg.replace("~", home_path))
 
 
-def list_files_for_path(root_path, extension=""):
-    def is_on_blacklist(path):
-        blacklist = [".git", "venv"]
-        return any(map(lambda x: x in str(path), blacklist))
-
-    def list_file_for_paths(paths):
-        paths = list(paths)
-
-        if len(paths) == 0:
-            return []
-
-        head: Path = paths[0]
-        tail = paths[1:]
-
-        if is_on_blacklist(head):
-            return list_file_for_paths(tail)
-        elif head.is_dir():
-            return list_file_for_paths(head.iterdir()) + list_file_for_paths(tail)
-        elif extension in str(head):
-            return [head] + list_file_for_paths(tail)
-        else:
-            return list_file_for_paths(tail)
-
-    if extension and not extension.startswith("."):
-        extension = f".{extension}"
-
-    return list_file_for_paths([root_path])
-
-
 def remove_trailing_whitespaces(file_path):
+    def read_content():
+        try:
+            with open(file_path, 'r') as file:
+                original_content = file.read()
+                split_content = original_content.split("\n")
+                lines_map = map(lambda x: x.rstrip(), split_content)
+                updated_content = "\n".join(lines_map)
+                return updated_content if original_content != updated_content else None
+        except UnicodeDecodeError as _:
+            return None
+
+    def write_content(content_to_write):
+        with open(file_path, 'w') as file:
+            file.write(content_to_write)
+
     if not file_path.exists():
         return UpdateResult.unchanged()
 
-    content = None
+    content = read_content()
 
-    with open(file_path, 'r') as file:
-        original_content = file.read()
-        split_content = original_content.split("\n")
-        lines_map = map(lambda x: x.rstrip(), split_content)
-        updated_content = "\n".join(lines_map)
-
-        if original_content != updated_content:
-            content = updated_content
-
-    if content is None:
-        return UpdateResult.unchanged()
-
-    with open(file_path, 'w') as file:
-        file.write(content)
+    if content is not None:
+        write_content(content)
         return UpdateResult.updated(file_path)
+    else:
+        return UpdateResult.unchanged()
 
 
 def print_results(results, paths):
@@ -103,12 +79,28 @@ def print_results(results, paths):
     print(f"\nUpdated: {number_of_updated_files}/{number_of_files_checked}")
 
 
+def should_omit_path(path_to_check):
+    if path_to_check.is_dir():
+        return True
+
+    blacklist = [".git", ".idea", "venv"]
+    str_path = str(path_to_check)
+
+    return any(map(lambda x: x in str_path, blacklist))
+
+
+def file_paths_for_root_path(root_path, extension):
+    paths = root_path.glob(f"**/*.{extension}")
+    filtered_file_paths = filter(lambda x: not should_omit_path(x), paths)
+    return sorted(filtered_file_paths)
+
+
 if __name__ == "__main__":
     arguments = parse_arguments()
     path = make_path(arguments.path)
 
     if path.exists():
-        file_paths = sorted(list_files_for_path(path, extension=arguments.file_type))
+        file_paths = file_paths_for_root_path(path, arguments.file_type)
 
         update_results = []
         for swift_file in file_paths:
